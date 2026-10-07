@@ -1529,3 +1529,28 @@ button:disabled {
   }
 }
 
+/* Tarjetas interactivas del Dashboard */
+.indicador-clickeable {
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.indicador-clickeable:hover {
+  transform: translateY(-4px);
+  border-color: #2563eb;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.16);
+}
+
+.indicador-clickeable:active {
+  transform: translateY(-1px) scale(0.99);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.14);
+}
+
+.indicador-clickeable:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 3px;
+}
+
