@@ -1,15 +1,41 @@
 import {
-  Navigate
+  Navigate,
+  useNavigate
 } from 'react-router-dom';
 
 import {
   useAuth
 } from '../../hooks/useAuth';
 
+import {
+  logout
+} from '../../services/auth';
+
 function ProtectedRoute({
   children,
   allowedRoles = []
 }) {
+
+
+  const navigate =
+    useNavigate();
+
+  const handleVolverLogin = async () => {
+    try {
+      await logout();
+
+      navigate('/login', {
+        replace: true
+      });
+    } catch (error) {
+      console.error(
+        'Error al cerrar sesión:',
+        error
+      );
+    }
+  };
+
+
   const {
     user,
     perfil,
@@ -39,23 +65,36 @@ function ProtectedRoute({
     );
   }
 
-  if (
-    errorPerfil ||
-    !perfil
-  ) {
-    return (
-      <div className="dashboard-estado dashboard-error">
-        <h2>
-          No se pudo cargar el perfil
-        </h2>
+if (
+  errorPerfil ||
+  !perfil
+) {
+  const empresaInactiva =
+    errorPerfil ===
+    'La empresa asignada está inactiva.';
 
-        <p>
-          {errorPerfil ||
-            'El usuario no tiene un perfil registrado.'}
-        </p>
-      </div>
-    );
-  }
+  return (
+    <div className="dashboard-estado dashboard-error">
+      <h2>
+        {empresaInactiva
+          ? 'Empresa deshabilitada'
+          : 'No se pudo cargar el perfil'}
+      </h2>
+
+      <p>
+        {errorPerfil ||
+          'El usuario no tiene un perfil registrado.'}
+      </p>
+
+      <button
+        type="button"
+        onClick={handleVolverLogin}
+      >
+        Volver al inicio
+      </button>
+    </div>
+  );
+}
 
   if (
     perfil.estado ===

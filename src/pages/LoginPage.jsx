@@ -192,19 +192,7 @@ function LoginPage() {
         </button>
       </form>
 
-      <p className="login-registro">
-        ¿No tienes una cuenta?{' '}
 
-        <button
-          type="button"
-          className="enlace-registro"
-          onClick={() =>
-            navigate('/registro')
-          }
-        >
-          Regístrate
-        </button>
-      </p>
     </div>
   );
 }
