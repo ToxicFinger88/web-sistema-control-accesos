@@ -12,9 +12,14 @@ import {
   auth
 } from '../services/firebase';
 
+
+
 import {
+  obtenerEmpresaActivaPorId,
   obtenerPerfilUsuario
 } from '../services/usuarios';
+
+
 
 export const AuthContext =
   createContext(null);
@@ -49,7 +54,9 @@ export function AuthProvider({
             return;
           }
 
+          setLoading(true);
           setErrorPerfil('');
+          setPerfil(null);
 
           if (!usuarioFirebase) {
             setUser(null);
@@ -72,18 +79,50 @@ export function AuthProvider({
              * Cargamos su perfil una sola
              * vez para toda la aplicación.
              */
-            const perfilUsuario =
-              await obtenerPerfilUsuario(
-                usuarioFirebase.uid
-              );
+     const perfilUsuario =
+  await obtenerPerfilUsuario(
+    usuarioFirebase.uid
+  );
 
-            if (!activo) {
-              return;
-            }
+if (!activo) {
+  return;
+}
 
-            setPerfil(
-              perfilUsuario
-            );
+/*
+ * El superadministrador no depende
+ * de ninguna empresa concreta.
+ */
+if (
+  perfilUsuario.rol !== 'superadmin'
+) {
+  const empresaId =
+    String(
+      perfilUsuario.empresaId || ''
+    ).trim();
+
+  if (!empresaId) {
+    throw new Error(
+      'El usuario no tiene una empresa asignada.'
+    );
+  }
+
+  /*
+   * Además de comprobar que la empresa
+   * existe, esta función rechaza empresas
+   * cuyo campo activa sea false.
+   */
+  await obtenerEmpresaActivaPorId(
+    empresaId
+  );
+}
+
+if (!activo) {
+  return;
+}
+
+setPerfil(
+  perfilUsuario
+);
           } catch (error) {
             if (!activo) {
               return;
