@@ -18,6 +18,18 @@ service cloud.firestore {
         && perfilActual().estado == 'activo';
     }
 
+
+    function empresaActiva(empresaId) {
+  return empresaId != null
+    && empresaId != ''
+    && exists(
+      /databases/$(database)/documents/empresas/$(empresaId)
+    )
+    && get(
+      /databases/$(database)/documents/empresas/$(empresaId)
+    ).data.activa == true;
+}
+
     function esSuperadmin() {
       return usuarioActivo()
         && perfilActual().rol == 'superadmin';
@@ -33,10 +45,11 @@ service cloud.firestore {
         && perfilActual().rol == 'operador';
     }
 
-    function perteneceAEmpresa(empresaId) {
-      return usuarioActivo()
-        && perfilActual().empresaId == empresaId;
-    }
+   function perteneceAEmpresa(empresaId) {
+  return usuarioActivo()
+    && perfilActual().empresaId == empresaId
+    && empresaActiva(empresaId);
+}
 
     match /usuarios/{usuarioId} {
       allow get: if estaAutenticado()
@@ -50,19 +63,20 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
-    match /empresas/{empresaId} {
-      allow read: if esSuperadmin()
-        || perteneceAEmpresa(empresaId);
+  match /empresas/{empresaId} {
+  allow read: if esSuperadmin()
+    || perteneceAEmpresa(empresaId);
 
-      allow create, update, delete: if esSuperadmin();
+  allow create, update: if esSuperadmin();
+  allow delete: if false;
 
-      match /configuracion/{documentoId} {
-        allow read: if esSuperadmin()
-          || perteneceAEmpresa(empresaId);
+  match /configuracion/{documentoId} {
+    allow read: if esSuperadmin()
+      || perteneceAEmpresa(empresaId);
 
-        allow write: if esSuperadmin();
-      }
-    }
+    allow write: if esSuperadmin();
+  }
+}
 
     /*
      * Se conserva temporalmente para compatibilidad

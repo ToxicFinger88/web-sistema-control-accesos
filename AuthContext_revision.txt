@@ -76,7 +76,6 @@ export function AuthProvider({ children }) {
         let usuarioVerificado = false;
         let empresaVerificada = false;
         let empresaActualId = null;
-        let versionEmpresa = 0;
 
         let revocada = false;
         let bloqueoTemporal = '';
@@ -102,7 +101,6 @@ export function AuthProvider({ children }) {
           setErrorPerfil(motivo);
           setLoading(false);
 
-          versionEmpresa++;
           detenerListeners();
 
           console.warn(
@@ -200,7 +198,6 @@ export function AuthProvider({ children }) {
         };
 
         const escucharEmpresa = (empresaId) => {
-          const version = ++versionEmpresa;
           if (unsubscribeEmpresa) {
             unsubscribeEmpresa();
             unsubscribeEmpresa = null;
@@ -225,14 +222,14 @@ export function AuthProvider({ children }) {
             { includeMetadataChanges: true },
 
             (snapshot) => {
-              if (!vigente() || revocada || version !== versionEmpresa) return;
+              if (!vigente() || revocada) return;
 
               if (snapshot.metadata.fromCache) {
                 empresaVerificada = false;
 
-                setPerfil(null);
-                setErrorPerfil('');
-                setLoading(true);
+                bloquearTemporalmente(
+                  'No se pudo confirmar el estado actual de la empresa.'
+                );
 
                 return;
               }
@@ -252,7 +249,7 @@ export function AuthProvider({ children }) {
             },
 
             (error) => {
-              if (!vigente() || revocada || version !== versionEmpresa) return;
+              if (!vigente() || revocada) return;
 
               empresaVerificada = false;
 
@@ -284,9 +281,9 @@ export function AuthProvider({ children }) {
             if (snapshot.metadata.fromCache) {
               usuarioVerificado = false;
 
-              setPerfil(null);
-              setErrorPerfil('');
-              setLoading(true);
+              bloquearTemporalmente(
+                'No se pudo confirmar el estado actual del usuario.'
+              );
 
               return;
             }
@@ -328,7 +325,6 @@ export function AuthProvider({ children }) {
               nuevoPerfil.estado === 'pendiente' ||
               nuevoPerfil.rol === 'superadmin'
             ) {
-              versionEmpresa++;
               if (unsubscribeEmpresa) {
                 unsubscribeEmpresa();
                 unsubscribeEmpresa = null;

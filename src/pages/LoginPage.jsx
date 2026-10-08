@@ -1,114 +1,86 @@
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { loginWithEmailAndPassword } from '../services/auth';
+import { useAuth } from '../hooks/useAuth';
 
-import {
-  useEffect,
-  useRef,
-  useState
-} from 'react';
-
-import {
-  useNavigate
-} from 'react-router-dom';
-
-import {
-  loginWithEmailAndPassword
-} from '../services/auth';
-
-import {
-  useAuth
-} from '../hooks/useAuth';
+const CLAVE_BLOQUEO = 'controlVisitasMotivoBloqueo';
+const MOTIVOS_BLOQUEO = ['usuario', 'empresa', 'autorizacion'];
 
 function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [cargando, setCargando] = useState(false);
-  const [esperandoAcceso, setEsperandoAcceso] =
-    useState(false);
-
-  const {
-    user,
-    perfil,
-    loading,
-    errorPerfil
-  } = useAuth();
-
-  const navigate = useNavigate();
+  const [enviando, setEnviando] = useState(false);
+  const [esperandoAcceso, setEsperandoAcceso] = useState(false);
   const intentoRef = useRef(false);
+  const { user, perfil, loading, errorPerfil } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (!esperandoAcceso || loading) return;
+    if (loading) return;
 
-    // Los estados temporales de Firestore no equivalen a credenciales inválidas.
-    if (errorPerfil) {
-      if (['usuario', 'empresa', 'autorizacion'].includes(errorPerfil)) {
-        setEsperandoAcceso(false);
-        setCargando(false);
-        intentoRef.current = false;
-        navigate('/acceso-bloqueado', { replace: true });
-      } else {
-        setError('Esperando confirmación de permisos desde el servidor.');
+    if (MOTIVOS_BLOQUEO.includes(errorPerfil)) {
+      intentoRef.current = false;
+      setEnviando(false);
+      setEsperandoAcceso(false);
+      navigate('/acceso-bloqueado', { replace: true });
+      return;
+    }
+
+    if (user && perfil && !errorPerfil) {
+      // El contexto confirmó la autorización; el bloqueo antiguo
+      // no debe impedir el acceso de una cuenta reactivada.
+      try {
+        sessionStorage.removeItem(CLAVE_BLOQUEO);
+      } catch (e) {
+        console.warn('No se pudo limpiar el bloqueo anterior:', e);
       }
+      intentoRef.current = false;
+      setEnviando(false);
+      setEsperandoAcceso(false);
+      navigate(
+        perfil.estado === 'pendiente'
+          ? '/pendiente'
+          : perfil.rol === 'superadmin'
+            ? '/admin'
+            : '/dashboard',
+        { replace: true }
+      );
       return;
     }
 
-    if (!user || !perfil) return;
-
-    setEsperandoAcceso(false);
-    setCargando(false);
-    intentoRef.current = false;
-
-    if (perfil.estado === 'pendiente') {
-      navigate('/pendiente', {
-        replace: true
-      });
-      return;
+    if (errorPerfil && user) {
+      intentoRef.current = false;
+      setEnviando(false);
+      setEsperandoAcceso(false);
+      setError('No se pudieron confirmar los permisos. Compruebe la conexión y vuelva a intentarlo.');
     }
-
-    if (perfil.rol === 'superadmin') {
-      navigate('/admin', {
-        replace: true
-      });
-      return;
-    }
-
-    navigate('/dashboard', {
-      replace: true
-    });
-  }, [
-    esperandoAcceso,
-    loading,
-    errorPerfil,
-    user,
-    perfil,
-    navigate
-  ]);
+  }, [user, perfil, loading, errorPerfil, navigate]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (intentoRef.current) return;
     intentoRef.current = true;
-
     setError('');
-    setCargando(true);
+    setEnviando(true);
+    setEsperandoAcceso(true);
 
     try {
-      await loginWithEmailAndPassword(
-        email,
-        password
-      );
+      // Se limpia únicamente al iniciar un nuevo intento explícito.
+      // Si la cuenta sigue desactivada, AuthContext lo registra otra vez.
+      sessionStorage.removeItem(CLAVE_BLOQUEO);
+    } catch (e) {
+      console.warn('No se pudo limpiar el estado anterior:', e);
+    }
 
-      setEsperandoAcceso(true);
+    try {
+      await loginWithEmailAndPassword(email, password);
+      // No navegar aquí. Esperar el perfil confirmado por Firestore.
+      setEnviando(false);
     } catch (err) {
-      console.error(
-        'Error de acceso:',
-        err
-      );
-
-      setError(
-        'No fue posible iniciar sesión. Verifique sus credenciales.'
-      );
-
-      setCargando(false);
+      console.error('Error de acceso:', err);
+      setError('No fue posible iniciar sesión. Verifique sus credenciales.');
+      setEnviando(false);
       setEsperandoAcceso(false);
       intentoRef.current = false;
     }
@@ -117,57 +89,38 @@ function LoginPage() {
   return (
     <div className="login-container">
       <h1>Control de Visitas</h1>
-
       <h2>Iniciar sesión</h2>
-
-      {error && (
-        <div className="error" role="alert">
-          {error}
-        </div>
+      {error && <div className="error" role="alert">{error}</div>}
+      {esperandoAcceso && !error && (
+        <p role="status">Verificando cuenta y permisos...</p>
       )}
-
       <form onSubmit={handleSubmit}>
         <div>
-          <label htmlFor="email">
-            Correo electrónico
-          </label>
-
+          <label htmlFor="email">Correo electrónico</label>
           <input
             type="email"
             id="email"
             value={email}
-            onChange={(event) =>
-              setEmail(event.target.value)
-            }
+            onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
+            disabled={esperandoAcceso || enviando}
             required
           />
         </div>
-
         <div>
-          <label htmlFor="password">
-            Contraseña
-          </label>
-
+          <label htmlFor="password">Contraseña</label>
           <input
             type="password"
             id="password"
             value={password}
-            onChange={(event) =>
-              setPassword(event.target.value)
-            }
+            onChange={(event) => setPassword(event.target.value)}
             autoComplete="current-password"
+            disabled={esperandoAcceso || enviando}
             required
           />
         </div>
-
-        <button
-          type="submit"
-          disabled={cargando}
-        >
-          {cargando
-            ? 'Verificando acceso...'
-            : 'Acceder'}
+        <button type="submit" disabled={esperandoAcceso || enviando}>
+          {esperandoAcceso || enviando ? 'Verificando acceso...' : 'Acceder'}
         </button>
       </form>
     </div>
