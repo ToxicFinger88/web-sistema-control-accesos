@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter,
   Navigate,
@@ -15,6 +16,8 @@ import EmpresasPage from './pages/admin/EmpresasPage';
 import UsuariosPage from './pages/admin/UsuariosPage';
 import UsuariosEmpresaPage from './pages/empresa/UsuariosEmpresaPage';
 
+import AccesoBloqueadoPage from './pages/AccesoBloqueadoPage';
+
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Layout from './components/layout/Layout';
 
@@ -24,10 +27,15 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         <Route
           path="/login"
           element={<LoginPage />}
+        />
+
+        {/* Pantalla pública de bloqueo */}
+        <Route
+          path="/acceso-bloqueado"
+          element={<AccesoBloqueadoPage />}
         />
 
         <Route
@@ -39,18 +47,10 @@ function App() {
           }
         />
 
-        {/* =========================
-            SUPERADMINISTRADOR
-           ========================= */}
-
         <Route
           path="/admin"
           element={
-            <ProtectedRoute
-              allowedRoles={[
-                'superadmin'
-              ]}
-            >
+            <ProtectedRoute allowedRoles={['superadmin']}>
               <AdminPage />
             </ProtectedRoute>
           }
@@ -59,11 +59,7 @@ function App() {
         <Route
           path="/admin/empresas"
           element={
-            <ProtectedRoute
-              allowedRoles={[
-                'superadmin'
-              ]}
-            >
+            <ProtectedRoute allowedRoles={['superadmin']}>
               <EmpresasPage />
             </ProtectedRoute>
           }
@@ -72,28 +68,17 @@ function App() {
         <Route
           path="/admin/usuarios"
           element={
-            <ProtectedRoute
-              allowedRoles={[
-                'superadmin'
-              ]}
-            >
+            <ProtectedRoute allowedRoles={['superadmin']}>
               <UsuariosPage />
             </ProtectedRoute>
           }
         />
 
-        {/* =========================
-            ÁREA OPERATIVA
-           ========================= */}
-
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute
-              allowedRoles={[
-                'admin_empresa',
-                'operador'
-              ]}
+              allowedRoles={['admin_empresa', 'operador']}
             >
               <Layout>
                 <Dashboard />
@@ -106,10 +91,7 @@ function App() {
           path="/visitas"
           element={
             <ProtectedRoute
-              allowedRoles={[
-                'admin_empresa',
-                'operador'
-              ]}
+              allowedRoles={['admin_empresa', 'operador']}
             >
               <Layout>
                 <VisitasPage />
@@ -118,18 +100,10 @@ function App() {
           }
         />
 
-        {/* =========================
-            USUARIOS DE LA EMPRESA
-           ========================= */}
-
         <Route
           path="/empresa/usuarios"
           element={
-            <ProtectedRoute
-              allowedRoles={[
-                'admin_empresa'
-              ]}
-            >
+            <ProtectedRoute allowedRoles={['admin_empresa']}>
               <Layout>
                 <UsuariosEmpresaPage />
               </Layout>
@@ -137,21 +111,15 @@ function App() {
           }
         />
 
-        {/* =========================
-            REGISTRO PENDIENTE
-           ========================= */}
-
         <Route
           path="/registro"
           element={
             <div className="login-container">
               <h1>Registro</h1>
-
               <p>
-                El formulario de registro se
-                agregará en la siguiente etapa.
+                El formulario de registro se agregará
+                en la siguiente etapa.
               </p>
-
               <a href="/login">
                 Volver al inicio de sesión
               </a>
@@ -159,30 +127,15 @@ function App() {
           }
         />
 
-        {/* =========================
-            RUTAS GENERALES
-           ========================= */}
-
         <Route
           path="/"
-          element={
-            <Navigate
-              to="/login"
-              replace
-            />
-          }
+          element={<Navigate to="/login" replace />}
         />
 
         <Route
           path="*"
-          element={
-            <Navigate
-              to="/login"
-              replace
-            />
-          }
+          element={<Navigate to="/login" replace />}
         />
-
       </Routes>
     </BrowserRouter>
   );

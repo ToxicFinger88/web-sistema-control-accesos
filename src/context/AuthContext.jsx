@@ -1,3 +1,4 @@
+
 import {
   createContext,
   useEffect,
@@ -5,151 +6,376 @@ import {
 } from 'react';
 
 import {
-  onAuthStateChanged
+  onAuthStateChanged,
+  signOut
 } from 'firebase/auth';
 
 import {
-  auth
-} from '../services/firebase';
-
-
+  doc,
+  onSnapshot
+} from 'firebase/firestore';
 
 import {
-  obtenerEmpresaActivaPorId,
-  obtenerPerfilUsuario
-} from '../services/usuarios';
+  auth,
+  db
+} from '../services/firebase';
 
+export const AuthContext = createContext(null);
 
+const CLAVE_BLOQUEO =
+  'controlVisitasMotivoBloqueo';
 
-export const AuthContext =
-  createContext(null);
-
-export function AuthProvider({
-  children
-}) {
-  const [user, setUser] =
-    useState(null);
-
-  const [perfil, setPerfil] =
-    useState(null);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [
-    errorPerfil,
-    setErrorPerfil
-  ] = useState('');
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [perfil, setPerfil] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorPerfil, setErrorPerfil] = useState('');
 
   useEffect(() => {
-    let activo = true;
+    let montado = true;
+    let generacion = 0;
 
-    const unsubscribe =
-      onAuthStateChanged(
-        auth,
-        async (
-          usuarioFirebase
-        ) => {
-          if (!activo) {
-            return;
-          }
+    let unsubscribeUsuario = null;
+    let unsubscribeEmpresa = null;
 
-          setLoading(true);
-          setErrorPerfil('');
+    const detenerListeners = () => {
+      if (unsubscribeUsuario) {
+        unsubscribeUsuario();
+        unsubscribeUsuario = null;
+      }
+
+      if (unsubscribeEmpresa) {
+        unsubscribeEmpresa();
+        unsubscribeEmpresa = null;
+      }
+    };
+
+    const unsubscribeAuth = onAuthStateChanged(
+      auth,
+      (usuarioFirebase) => {
+        const actual = ++generacion;
+
+        const vigente = () =>
+          montado && actual === generacion;
+
+        detenerListeners();
+
+        setLoading(true);
+        setPerfil(null);
+        setErrorPerfil('');
+        setUser(usuarioFirebase);
+
+        if (!usuarioFirebase) {
+          setLoading(false);
+          return;
+        }
+
+        const uid = usuarioFirebase.uid;
+
+        let perfilActual = null;
+        let usuarioVerificado = false;
+        let empresaVerificada = false;
+        let empresaActualId = null;
+
+        let revocada = false;
+        let bloqueoTemporal = '';
+
+        /*
+         * Cierre definitivo de la sesión.
+         *
+         * Se utiliza solamente cuando existe
+         * una desactivación confirmada o una
+         * revocación de autorización.
+         */
+        const revocarSesion = async (motivo) => {
+          if (!vigente() || revocada) return;
+
+          revocada = true;
+
+          sessionStorage.setItem(
+            CLAVE_BLOQUEO,
+            motivo
+          );
+
           setPerfil(null);
+          setErrorPerfil(motivo);
+          setLoading(false);
 
-          if (!usuarioFirebase) {
-            setUser(null);
-            setPerfil(null);
-            setLoading(false);
+          detenerListeners();
 
-            return;
-          }
+          console.warn(
+            '[SESION] Revocación:',
+            motivo
+          );
 
           try {
-            /*
-             * Mantenemos inmediatamente
-             * el usuario de Authentication.
-             */
-            setUser(
-              usuarioFirebase
-            );
-
-            /*
-             * Cargamos su perfil una sola
-             * vez para toda la aplicación.
-             */
-     const perfilUsuario =
-  await obtenerPerfilUsuario(
-    usuarioFirebase.uid
-  );
-
-if (!activo) {
-  return;
-}
-
-/*
- * El superadministrador no depende
- * de ninguna empresa concreta.
- */
-if (
-  perfilUsuario.rol !== 'superadmin'
-) {
-  const empresaId =
-    String(
-      perfilUsuario.empresaId || ''
-    ).trim();
-
-  if (!empresaId) {
-    throw new Error(
-      'El usuario no tiene una empresa asignada.'
-    );
-  }
-
-  /*
-   * Además de comprobar que la empresa
-   * existe, esta función rechaza empresas
-   * cuyo campo activa sea false.
-   */
-  await obtenerEmpresaActivaPorId(
-    empresaId
-  );
-}
-
-if (!activo) {
-  return;
-}
-
-setPerfil(
-  perfilUsuario
-);
+            await signOut(auth);
           } catch (error) {
-            if (!activo) {
-              return;
-            }
-
             console.error(
-              'Error obteniendo el perfil del usuario:',
+              '[SESION] Error al cerrar sesión:',
               error
             );
 
-            setPerfil(null);
-
-            setErrorPerfil(
-              error.message ||
-                'No fue posible cargar el perfil.'
-            );
-          } finally {
-            if (activo) {
-              setLoading(false);
+            if (vigente()) {
+              setErrorPerfil(
+                'No se pudo completar el cierre de sesión.'
+              );
             }
           }
-        }
-      );
+        };
+
+        /*
+         * Bloqueo temporal.
+         *
+         * Un problema de conexión no debe
+         * confundirse con una desactivación.
+         */
+        const bloquearTemporalmente = (mensaje) => {
+          if (!vigente() || revocada) return;
+
+          bloqueoTemporal = mensaje;
+
+          setPerfil(null);
+          setErrorPerfil(mensaje);
+          setLoading(false);
+        };
+
+        const comprobarAcceso = () => {
+          if (!vigente() || revocada) return;
+
+          if (bloqueoTemporal) {
+            setPerfil(null);
+            setErrorPerfil(bloqueoTemporal);
+            setLoading(false);
+            return;
+          }
+
+          if (!usuarioVerificado || !perfilActual) {
+            setPerfil(null);
+            setLoading(true);
+            return;
+          }
+
+          if (perfilActual.estado === 'pendiente') {
+            setPerfil(perfilActual);
+            setErrorPerfil('');
+            setLoading(false);
+            return;
+          }
+
+          if (perfilActual.estado !== 'activo') {
+            void revocarSesion('usuario');
+            return;
+          }
+
+          if (
+            ![
+              'superadmin',
+              'admin_empresa',
+              'operador'
+            ].includes(perfilActual.rol)
+          ) {
+            void revocarSesion('autorizacion');
+            return;
+          }
+
+          if (perfilActual.rol !== 'superadmin') {
+            if (!empresaActualId) {
+              void revocarSesion('autorizacion');
+              return;
+            }
+
+            if (!empresaVerificada) {
+              setPerfil(null);
+              setLoading(true);
+              return;
+            }
+          }
+
+          setPerfil(perfilActual);
+          setErrorPerfil('');
+          setLoading(false);
+        };
+
+        const escucharEmpresa = (empresaId) => {
+          if (unsubscribeEmpresa) {
+            unsubscribeEmpresa();
+            unsubscribeEmpresa = null;
+          }
+
+          empresaActualId = empresaId;
+          empresaVerificada = false;
+
+          if (!empresaId) {
+            void revocarSesion('autorizacion');
+            return;
+          }
+
+          const referencia = doc(
+            db,
+            'empresas',
+            empresaId
+          );
+
+          unsubscribeEmpresa = onSnapshot(
+            referencia,
+            { includeMetadataChanges: true },
+
+            (snapshot) => {
+              if (!vigente() || revocada) return;
+
+              if (snapshot.metadata.fromCache) {
+                empresaVerificada = false;
+
+                bloquearTemporalmente(
+                  'No se pudo confirmar el estado actual de la empresa.'
+                );
+
+                return;
+              }
+
+              if (
+                !snapshot.exists() ||
+                snapshot.data().activa !== true
+              ) {
+                void revocarSesion('empresa');
+                return;
+              }
+
+              bloqueoTemporal = '';
+              empresaVerificada = true;
+
+              comprobarAcceso();
+            },
+
+            (error) => {
+              if (!vigente() || revocada) return;
+
+              empresaVerificada = false;
+
+              if (error.code === 'permission-denied') {
+                void revocarSesion('autorizacion');
+                return;
+              }
+
+              bloquearTemporalmente(
+                'No se pudo verificar el estado de la empresa.'
+              );
+            }
+          );
+        };
+
+        const referenciaUsuario = doc(
+          db,
+          'usuarios',
+          uid
+        );
+
+        unsubscribeUsuario = onSnapshot(
+          referenciaUsuario,
+          { includeMetadataChanges: true },
+
+          (snapshot) => {
+            if (!vigente() || revocada) return;
+
+            if (snapshot.metadata.fromCache) {
+              usuarioVerificado = false;
+
+              bloquearTemporalmente(
+                'No se pudo confirmar el estado actual del usuario.'
+              );
+
+              return;
+            }
+
+            if (!snapshot.exists()) {
+              void revocarSesion('autorizacion');
+              return;
+            }
+
+            const nuevoPerfil = {
+              uid: snapshot.id,
+              ...snapshot.data()
+            };
+
+            const nuevoEmpresaId =
+              nuevoPerfil.rol === 'superadmin'
+                ? null
+                : String(
+                    nuevoPerfil.empresaId || ''
+                  ).trim();
+
+            const empresaCambio =
+              nuevoEmpresaId !== empresaActualId;
+
+            perfilActual = nuevoPerfil;
+            usuarioVerificado = true;
+
+            bloqueoTemporal = '';
+
+            if (
+              nuevoPerfil.estado !== 'activo' &&
+              nuevoPerfil.estado !== 'pendiente'
+            ) {
+              void revocarSesion('usuario');
+              return;
+            }
+
+            if (
+              nuevoPerfil.estado === 'pendiente' ||
+              nuevoPerfil.rol === 'superadmin'
+            ) {
+              if (unsubscribeEmpresa) {
+                unsubscribeEmpresa();
+                unsubscribeEmpresa = null;
+              }
+
+              empresaActualId = null;
+              empresaVerificada = false;
+
+              comprobarAcceso();
+              return;
+            }
+
+            if (
+              nuevoPerfil.rol !== 'admin_empresa' &&
+              nuevoPerfil.rol !== 'operador'
+            ) {
+              void revocarSesion('autorizacion');
+              return;
+            }
+
+            if (empresaCambio || !unsubscribeEmpresa) {
+              escucharEmpresa(nuevoEmpresaId);
+            }
+
+            comprobarAcceso();
+          },
+
+          (error) => {
+            if (!vigente() || revocada) return;
+
+            usuarioVerificado = false;
+
+            if (error.code === 'permission-denied') {
+              void revocarSesion('autorizacion');
+              return;
+            }
+
+            bloquearTemporalmente(
+              'No se pudo verificar el estado del usuario.'
+            );
+          }
+        );
+      }
+    );
 
     return () => {
-      activo = false;
-      unsubscribe();
+      montado = false;
+      generacion++;
+
+      detenerListeners();
+      unsubscribeAuth();
     };
   }, []);
 
@@ -159,26 +385,14 @@ setPerfil(
     loading,
     errorPerfil,
 
-    autenticado:
-      Boolean(user),
-
-    activo:
-      perfil?.estado ===
-      'activo',
-
-    rol:
-      perfil?.rol ||
-      null,
-
-    empresaId:
-      perfil?.empresaId ||
-      null
+    autenticado: Boolean(user),
+    activo: perfil?.estado === 'activo',
+    rol: perfil?.rol || null,
+    empresaId: perfil?.empresaId || null
   };
 
   return (
-    <AuthContext.Provider
-      value={value}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

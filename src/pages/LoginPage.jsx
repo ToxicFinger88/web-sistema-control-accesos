@@ -1,144 +1,127 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import {
-  loginWithEmailAndPassword,
-  logout
+  useEffect,
+  useRef,
+  useState
+} from 'react';
+
+import {
+  useNavigate
+} from 'react-router-dom';
+
+import {
+  loginWithEmailAndPassword
 } from '../services/auth';
 
 import {
-  obtenerPerfilUsuario
-} from '../services/usuarios';
+  useAuth
+} from '../hooks/useAuth';
 
 function LoginPage() {
-  const [email, setEmail] =
-    useState('');
-
-  const [password, setPassword] =
-    useState('');
-
-  const [error, setError] =
-    useState('');
-
-  const [cargando, setCargando] =
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [esperandoAcceso, setEsperandoAcceso] =
     useState(false);
 
+  const {
+    user,
+    perfil,
+    loading,
+    errorPerfil
+  } = useAuth();
+
   const navigate = useNavigate();
+  const intentoRef = useRef(false);
+
+  useEffect(() => {
+    if (!esperandoAcceso || loading) return;
+
+    // Los estados temporales de Firestore no equivalen a credenciales inválidas.
+    if (errorPerfil) {
+      if (['usuario', 'empresa', 'autorizacion'].includes(errorPerfil)) {
+        setEsperandoAcceso(false);
+        setCargando(false);
+        intentoRef.current = false;
+        navigate('/acceso-bloqueado', { replace: true });
+      } else {
+        setError('Esperando confirmación de permisos desde el servidor.');
+      }
+      return;
+    }
+
+    if (!user || !perfil) return;
+
+    setEsperandoAcceso(false);
+    setCargando(false);
+    intentoRef.current = false;
+
+    if (perfil.estado === 'pendiente') {
+      navigate('/pendiente', {
+        replace: true
+      });
+      return;
+    }
+
+    if (perfil.rol === 'superadmin') {
+      navigate('/admin', {
+        replace: true
+      });
+      return;
+    }
+
+    navigate('/dashboard', {
+      replace: true
+    });
+  }, [
+    esperandoAcceso,
+    loading,
+    errorPerfil,
+    user,
+    perfil,
+    navigate
+  ]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (intentoRef.current) return;
+    intentoRef.current = true;
 
     setError('');
     setCargando(true);
 
     try {
-      const usuarioFirebase =
-        await loginWithEmailAndPassword(
-          email,
-          password
-        );
-
-      const perfil =
-        await obtenerPerfilUsuario(
-          usuarioFirebase.uid
-        );
-
-      if (perfil.estado === 'pendiente') {
-        navigate('/pendiente', {
-          replace: true
-        });
-
-        return;
-      }
-
-      if (perfil.estado !== 'activo') {
-        await logout();
-
-        setError(
-          'La cuenta está inactiva. Comunícate con un administrador.'
-        );
-
-        return;
-      }
-
-      /*
-       * El superadministrador entra
-       * exclusivamente al panel global.
-       */
-      if (perfil.rol === 'superadmin') {
-        navigate('/admin', {
-          replace: true
-        });
-
-        return;
-      }
-
-      /*
-       * Los usuarios empresariales entran
-       * al dashboard de su empresa.
-       */
-      if (
-        perfil.rol === 'admin_empresa' ||
-        perfil.rol === 'operador'
-      ) {
-        if (!perfil.empresaId) {
-          await logout();
-
-          setError(
-            'La cuenta no tiene una empresa asignada.'
-          );
-
-          return;
-        }
-
-        navigate('/dashboard', {
-          replace: true
-        });
-
-        return;
-      }
-
-      await logout();
-
-      setError(
-        'La cuenta no tiene un rol válido.'
+      await loginWithEmailAndPassword(
+        email,
+        password
       );
+
+      setEsperandoAcceso(true);
     } catch (err) {
       console.error(
         'Error de acceso:',
         err
       );
 
-      if (
-        err.message?.includes(
-          'no tiene perfil'
-        )
-      ) {
-        setError(
-          'La cuenta existe, pero todavía no tiene un perfil empresarial.'
-        );
-      } else {
-        setError(
-          'Correo o contraseña incorrectos.'
-        );
-      }
-    } finally {
+      setError(
+        'No fue posible iniciar sesión. Verifique sus credenciales.'
+      );
+
       setCargando(false);
+      setEsperandoAcceso(false);
+      intentoRef.current = false;
     }
   };
 
   return (
     <div className="login-container">
-      <h1>
-        Control de Visitas
-      </h1>
+      <h1>Control de Visitas</h1>
 
-      <h2>
-        Iniciar sesión
-      </h2>
+      <h2>Iniciar sesión</h2>
 
       {error && (
-        <div className="error">
+        <div className="error" role="alert">
           {error}
         </div>
       )}
@@ -154,9 +137,7 @@ function LoginPage() {
             id="email"
             value={email}
             onChange={(event) =>
-              setEmail(
-                event.target.value
-              )
+              setEmail(event.target.value)
             }
             autoComplete="email"
             required
@@ -173,9 +154,7 @@ function LoginPage() {
             id="password"
             value={password}
             onChange={(event) =>
-              setPassword(
-                event.target.value
-              )
+              setPassword(event.target.value)
             }
             autoComplete="current-password"
             required
@@ -191,8 +170,6 @@ function LoginPage() {
             : 'Acceder'}
         </button>
       </form>
-
-
     </div>
   );
 }

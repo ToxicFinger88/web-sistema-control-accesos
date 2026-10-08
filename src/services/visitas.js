@@ -4,6 +4,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  getCountFromServer,
+  orderBy,
+  limit,
+  startAfter,
+  Timestamp,
   query,
   serverTimestamp,
   where
@@ -199,87 +204,67 @@ export const crearVisita =
     }
   };
 
-export const obtenerVisitas =
-  async ({
-    empresaId,
-    creadoPorUid = ''
-  }) => {
-    try {
-      const empresa =
-        validarEmpresaId(
-          empresaId
-        );
+// Consultas siempre acotadas por empresa; para operador, también por UID.
+const crearRestricciones = ({ empresaId, creadoPorUid = '', fechaDesde = '', fechaHasta = '' }) => {
+  const restricciones = [where('empresaId', '==', validarEmpresaId(empresaId))];
+  const uid = normalizarUid(creadoPorUid);
+  if (uid) restricciones.push(where('creadoPorUid', '==', uid));
+  const desde = fechaDesde ? new Date(`${fechaDesde}T00:00:00`) : null;
+  const hasta = fechaHasta ? new Date(`${fechaHasta}T00:00:00`) : null;
+  if (desde && Number.isNaN(desde.getTime())) throw new Error('Fecha inicial inválida.');
+  if (hasta && Number.isNaN(hasta.getTime())) throw new Error('Fecha final inválida.');
+  if (desde) restricciones.push(where('fecha', '>=', Timestamp.fromDate(desde)));
+  if (hasta) {
+    hasta.setDate(hasta.getDate() + 1);
+    restricciones.push(where('fecha', '<', Timestamp.fromDate(hasta)));
+  }
+  return restricciones;
+};
 
-      const uid =
-        normalizarUid(
-          creadoPorUid
-        );
-
-      const restricciones = [
-        where(
-          'empresaId',
-          '==',
-          empresa
-        )
-      ];
-
-      /*
-       * Para operadores se envía creadoPorUid.
-       * Esto es importante también para que
-       * las reglas de Firestore puedan validar
-       * la consulta sin exponer visitas ajenas.
-       */
-      if (uid) {
-        restricciones.push(
-          where(
-            'creadoPorUid',
-            '==',
-            uid
-          )
-        );
-      }
-
-      const consulta = query(
-        collection(
-          db,
-          COLLECTION_NAME
-        ),
-        ...restricciones
-      );
-
-      const resultado =
-        await getDocs(
-          consulta
-        );
-
-      const visitas =
-        resultado.docs.map(
-          (documento) => ({
-            id: documento.id,
-            ...documento.data()
-          })
-        );
-
-      visitas.sort(
-        (
-          visitaA,
-          visitaB
-        ) =>
-          obtenerMilisegundosFecha(
-            visitaB.fecha
-          ) -
-          obtenerMilisegundosFecha(
-            visitaA.fecha
-          )
-      );
-
-      return visitas;
-    } catch (error) {
-      throw new Error(
-        `Error al obtener visitas: ${error.message}`
-      );
-    }
+export const obtenerVisitasPaginadas = async ({
+  empresaId, creadoPorUid = '', fechaDesde = '', fechaHasta = '',
+  cursor = null, tamanoPagina = 50
+}) => {
+  const tamano = Math.min(50, Math.max(1, Number(tamanoPagina) || 50));
+  const restricciones = crearRestricciones({ empresaId, creadoPorUid, fechaDesde, fechaHasta });
+  const consulta = query(
+    collection(db, COLLECTION_NAME), ...restricciones,
+    orderBy('fecha', 'desc'), limit(tamano + 1),
+    ...(cursor ? [startAfter(cursor)] : [])
+  );
+  const resultado = await getDocs(consulta);
+  const documentos = resultado.docs.slice(0, tamano);
+  return {
+    visitas: documentos.map(documento => ({ id: documento.id, ...documento.data() })),
+    cursorSiguiente: documentos.length ? documentos[documentos.length - 1] : null,
+    hayMas: resultado.docs.length > tamano
   };
+};
+
+export const contarVisitas = async (filtros) => {
+  const consulta = query(collection(db, COLLECTION_NAME), ...crearRestricciones(filtros));
+  const resultado = await getCountFromServer(consulta);
+  return resultado.data().count;
+};
+
+// Exportación explícita por lotes: no se ejecuta al abrir el historial.
+export const obtenerVisitasParaExportar = async (filtros, maximo = 10000) => {
+  const todas = [];
+  let cursor = null;
+  let hayMas = true;
+  while (hayMas && todas.length < maximo) {
+    const pagina = await obtenerVisitasPaginadas({ ...filtros, cursor });
+    todas.push(...pagina.visitas);
+    cursor = pagina.cursorSiguiente;
+    hayMas = pagina.hayMas;
+  }
+  if (hayMas) throw new Error(`La exportación supera el máximo de ${maximo} registros. Acote el rango de fechas.`);
+  return todas;
+};
+
+// Compatibilidad: las llamadas existentes quedan acotadas a una página.
+export const obtenerVisitas = async (filtros) =>
+  (await obtenerVisitasPaginadas(filtros)).visitas;
 
 export const obtenerVisitaPorId =
   async ({
@@ -359,65 +344,7 @@ export const obtenerVisitaPorId =
     }
   };
 
-export const obtenerVisitasPorFecha =
-  async ({
-    empresaId,
-    fecha,
-    creadoPorUid = ''
-  }) => {
-    try {
-      const visitas =
-        await obtenerVisitas({
-          empresaId,
-          creadoPorUid
-        });
-
-      if (!fecha) {
-        return visitas;
-      }
-
-      const inicio =
-        new Date(fecha);
-
-      inicio.setHours(
-        0,
-        0,
-        0,
-        0
-      );
-
-      const fin =
-        new Date(fecha);
-
-      fin.setHours(
-        23,
-        59,
-        59,
-        999
-      );
-
-      return visitas.filter(
-        (visita) => {
-          const tiempo =
-            obtenerMilisegundosFecha(
-              visita.fecha
-            );
-
-          if (!tiempo) {
-            return false;
-          }
-
-          return (
-            tiempo >=
-              inicio.getTime() &&
-            tiempo <=
-              fin.getTime()
-          );
-        }
-      );
-    } catch (error) {
-      throw new Error(
-        `Error al obtener visitas por fecha: ${error.message}`
-      );
-    }
-  };
+export const obtenerVisitasPorFecha = async ({ empresaId, fecha, creadoPorUid = '' }) => {
+  if (!fecha) throw new Error('Indique una fecha para la consulta.');
+  return obtenerVisitasParaExportar({ empresaId, creadoPorUid, fechaDesde: fecha, fechaHasta: fecha });
+};

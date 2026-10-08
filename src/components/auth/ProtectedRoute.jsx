@@ -1,5 +1,7 @@
+
 import {
   Navigate,
+  useLocation,
   useNavigate
 } from 'react-router-dom';
 
@@ -11,14 +13,21 @@ import {
   logout
 } from '../../services/auth';
 
+import AccesoBloqueado from './AccesoBloqueado';
+
 function ProtectedRoute({
   children,
   allowedRoles = []
 }) {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-
-  const navigate =
-    useNavigate();
+  const {
+    user,
+    perfil,
+    loading,
+    errorPerfil
+  } = useAuth();
 
   const handleVolverLogin = async () => {
     try {
@@ -35,19 +44,6 @@ function ProtectedRoute({
     }
   };
 
-
-  const {
-    user,
-    perfil,
-    loading,
-    errorPerfil
-  } = useAuth();
-
-  /*
-   * Esto debería aparecer únicamente
-   * durante la carga inicial de la aplicación,
-   * no en cada navegación.
-   */
   if (loading) {
     return (
       <div className="dashboard-estado">
@@ -56,50 +52,66 @@ function ProtectedRoute({
     );
   }
 
-  if (!user) {
+if (!user) {
+  const motivoBloqueo = sessionStorage.getItem(
+    'controlVisitasMotivoBloqueo'
+  );
+
+  return (
+    <Navigate
+      to={
+        motivoBloqueo
+          ? '/acceso-bloqueado'
+          : '/login'
+      }
+      replace
+    />
+  );
+}
+
+  if (errorPerfil === 'empresa') {
     return (
-      <Navigate
-        to="/login"
-        replace
+      <AccesoBloqueado
+        tipo="empresa"
+        onVolver={handleVolverLogin}
       />
     );
   }
 
-if (
-  errorPerfil ||
-  !perfil
-) {
-  const empresaInactiva =
-    errorPerfil ===
-    'La empresa asignada está inactiva.';
+  if (errorPerfil === 'usuario') {
+    return (
+      <AccesoBloqueado
+        tipo="usuario"
+        onVolver={handleVolverLogin}
+      />
+    );
+  }
 
-  return (
-    <div className="dashboard-estado dashboard-error">
-      <h2>
-        {empresaInactiva
-          ? 'Empresa deshabilitada'
-          : 'No se pudo cargar el perfil'}
-      </h2>
+  if (errorPerfil || !perfil) {
+    return (
+      <div className="dashboard-estado dashboard-error">
+        <h2>Acceso no disponible</h2>
 
-      <p>
-        {errorPerfil ||
-          'El usuario no tiene un perfil registrado.'}
-      </p>
+        <p>
+          {errorPerfil ||
+            'No se pudo verificar la autorización.'}
+        </p>
 
-      <button
-        type="button"
-        onClick={handleVolverLogin}
-      >
-        Volver al inicio
-      </button>
-    </div>
-  );
-}
+        <button
+          type="button"
+          onClick={handleVolverLogin}
+        >
+          Volver al inicio de sesión
+        </button>
+      </div>
+    );
+  }
 
-  if (
-    perfil.estado ===
-    'pendiente'
-  ) {
+  if (perfil.estado === 'pendiente') {
+    if (location.pathname === '/pendiente') {
+      return children;
+    }
+
     return (
       <Navigate
         to="/pendiente"
@@ -108,45 +120,39 @@ if (
     );
   }
 
-  if (
-    perfil.estado !==
-    'activo'
-  ) {
+  if (perfil.estado !== 'activo') {
     return (
-      <div className="dashboard-estado dashboard-error">
-        <h2>
-          Cuenta deshabilitada
-        </h2>
+      <AccesoBloqueado
+        tipo="usuario"
+        onVolver={handleVolverLogin}
+      />
+    );
+  }
 
-        <p>
-          Comunícate con un administrador
-          para revisar el estado de tu cuenta.
-        </p>
-      </div>
+  if (location.pathname === '/pendiente') {
+    return (
+      <Navigate
+        to={
+          perfil.rol === 'superadmin'
+            ? '/admin'
+            : '/dashboard'
+        }
+        replace
+      />
     );
   }
 
   if (
     allowedRoles.length > 0 &&
-    !allowedRoles.includes(
-      perfil.rol
-    )
+    !allowedRoles.includes(perfil.rol)
   ) {
-    if (
-      perfil.rol ===
-      'superadmin'
-    ) {
-      return (
-        <Navigate
-          to="/admin"
-          replace
-        />
-      );
-    }
-
     return (
       <Navigate
-        to="/dashboard"
+        to={
+          perfil.rol === 'superadmin'
+            ? '/admin'
+            : '/dashboard'
+        }
         replace
       />
     );

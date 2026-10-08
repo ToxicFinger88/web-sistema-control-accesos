@@ -34,7 +34,7 @@ import {
 
 import { useAuth } from '../../hooks/useAuth';
 
-import { obtenerVisitas } from '../../services/visitas';
+import { obtenerVisitasPaginadas, obtenerVisitasParaExportar } from '../../services/visitas';
 
 import { listarUsuarios } from '../../services/usuarios';
 
@@ -76,6 +76,15 @@ function HistorialVisitas() {
 
     useState([]);
 
+
+    const [pagina, setPagina] = useState(1);
+
+    const [cursores, setCursores] = useState([null]);
+
+    const [hayMas, setHayMas] = useState(false);
+
+    const [exportacionCompleta, setExportacionCompleta] =
+      useState(false);
 
 
   const [usuariosEmpresa, setUsuariosEmpresa] =
@@ -180,205 +189,59 @@ const [
 
 
 
-  const cargarVisitas = useCallback(async () => {
-
-    const empresaId =
-
-      String(
-
-        perfil?.empresaId || ''
-
-      ).trim();
-
-
-
-    if (!empresaId) {
-
-      setVisitas([]);
-
-      setUsuariosEmpresa([]);
-
-
-
-      setError(
-
-        'El usuario no tiene una empresa asignada.'
-
-      );
-
-
-
+  const empresaId = String(perfil?.empresaId || '').trim();
+  const uidFiltro = esOperador ? uidActual : usuarioFiltro === FILTRO_SIN_USUARIO ? '' : usuarioFiltro;
+  const cargarVisitas = useCallback(async (numeroPagina = 1, cursor = null) => {
+    if (!empresaId || (esOperador && !uidActual)) {
+      setError('No se pudo identificar la empresa o el usuario conectado.');
       setCargando(false);
-
       return;
-
     }
-
-
-
-    if (
-
-      esOperador &&
-
-      !uidActual
-
-    ) {
-
-      setVisitas([]);
-
-
-
-      setError(
-
-        'No se pudo identificar al usuario conectado.'
-
-      );
-
-
-
-      setCargando(false);
-
-      return;
-
-    }
-
-
-
     try {
-
       setCargando(true);
-
       setError('');
-
-
-
-      /*
-
-       * OPERADOR:
-
-       * consulta solamente sus propias visitas.
-
-       *
-
-       * ADMIN_EMPRESA:
-
-       * consulta todas las visitas de su empresa.
-
-       */
-
-      const promesaVisitas =
-
-        obtenerVisitas({
-
-          empresaId,
-
-          creadoPorUid:
-
-            esOperador
-
-              ? uidActual
-
-              : ''
-
-        });
-
-
-
-      const promesaUsuarios =
-
-        esAdminEmpresa
-
-          ? listarUsuarios({
-
-              empresaId
-
-            })
-
-          : Promise.resolve([]);
-
-
-
-      const [
-
-        datosVisitas,
-
-        datosUsuarios
-
-      ] = await Promise.all([
-
-        promesaVisitas,
-
-        promesaUsuarios
-
-      ]);
-
-
-
-      setVisitas(
-
-        datosVisitas
-
-      );
-
-
-
-      setUsuariosEmpresa(
-
-        datosUsuarios
-
-      );
-
+  const promesaVisitas = obtenerVisitasPaginadas({
+  empresaId,
+  creadoPorUid: uidFiltro,
+  fechaDesde: fechaDesdeAplicada,
+  fechaHasta: fechaHastaAplicada,
+  cursor,
+  tamanoPagina: 5 // SOLO PARA PRUEBAS
+});
+      const promesaUsuarios = esAdminEmpresa && usuariosEmpresa.length === 0
+        ? listarUsuarios({ empresaId }) : Promise.resolve(null);
+      const [resultado, usuarios] = await Promise.all([promesaVisitas, promesaUsuarios]);
+      // Para registros antiguos sin UID, el filtro se aplica en Firestore en una fase posterior.
+      setVisitas(resultado.visitas);
+      setHayMas(resultado.hayMas);
+      setPagina(numeroPagina);
+      setCursores(prev => {
+        const nuevos = prev.slice(0, numeroPagina);
+        nuevos[numeroPagina] = resultado.cursorSiguiente;
+        return nuevos;
+      });
+      if (usuarios) setUsuariosEmpresa(usuarios);
     } catch (err) {
-
-      console.error(
-
-        'Error cargando historial:',
-
-        err
-
-      );
-
-
-
-      setError(
-
-        err.message ||
-
-          'No fue posible cargar el historial.'
-
-      );
-
+      console.error('Error cargando historial:', err);
+      setError(err.message || 'No fue posible cargar el historial.');
     } finally {
-
       setCargando(false);
-
     }
-
-  }, [
-
-    perfil?.empresaId,
-
-    esAdminEmpresa,
-
-    esOperador,
-
-    uidActual
-
-  ]);
-
-
+  }, [empresaId, uidFiltro, esOperador, uidActual, esAdminEmpresa,
+      fechaDesdeAplicada, fechaHastaAplicada]);
 
   useEffect(() => {
+    setCursores([null]);
+    setPagina(1);
+    cargarVisitas(1, null);
+  }, [cargarVisitas]);
 
-    cargarVisitas();
-
-  }, [
-
-    cargarVisitas
-
-  ]);
-
-
+  const siguientePagina = () => {
+    if (hayMas && !cargando) cargarVisitas(pagina + 1, cursores[pagina]);
+  };
+  const anteriorPagina = () => {
+    if (pagina > 1 && !cargando) cargarVisitas(pagina - 1, cursores[pagina - 2] || null);
+  };
 
   const mapaUsuarios =
 
@@ -478,83 +341,10 @@ const [
 
 
 
-  const opcionesUsuarios =
-
-    useMemo(() => {
-
-      const uidsConVisitas =
-
-        new Set(
-
-          visitas
-
-            .map(
-
-              (visita) =>
-
-                String(
-
-                  visita.creadoPorUid || ''
-
-                ).trim()
-
-            )
-
-            .filter(Boolean)
-
-        );
-
-
-
-      return Object
-
-        .entries(mapaUsuarios)
-
-        .filter(
-
-          ([uid]) =>
-
-            uidsConVisitas.has(uid)
-
-        )
-
-        .map(
-
-          ([uid, nombre]) => ({
-
-            uid,
-
-            nombre
-
-          })
-
-        )
-
-        .sort(
-
-          (a, b) =>
-
-            a.nombre.localeCompare(
-
-              b.nombre,
-
-              'es'
-
-            )
-
-        );
-
-    }, [
-
-      visitas,
-
-      mapaUsuarios
-
-    ]);
-
-
-
-
+  const opcionesUsuarios = useMemo(() => Object.entries(mapaUsuarios)
+    .map(([uid, nombre]) => ({ uid, nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    [mapaUsuarios]);
 
 const convertirFecha = (fecha) => {
 
@@ -692,155 +482,12 @@ const crearFechaLocal = (
 
 
 
-const visitasMostradas =
-
-  useMemo(() => {
-
-    const desde =
-
-      crearFechaLocal(
-
-        fechaDesdeAplicada,
-
-        false
-
-      );
-
-
-
-    const hasta =
-
-      crearFechaLocal(
-
-        fechaHastaAplicada,
-
-        true
-
-      );
-
-
-
-    return visitas.filter(
-
-      (visita) => {
-
-        const fechaVisita =
-
-          convertirFecha(
-
-            visita.fecha
-
-          );
-
-
-
-        if (desde || hasta) {
-
-          if (!fechaVisita) {
-
-            return false;
-
-          }
-
-
-
-          if (
-
-            desde &&
-
-            fechaVisita < desde
-
-          ) {
-
-            return false;
-
-          }
-
-
-
-          if (
-
-            hasta &&
-
-            fechaVisita > hasta
-
-          ) {
-
-            return false;
-
-          }
-
-        }
-
-
-
-        if (
-
-          esAdminEmpresa &&
-
-          usuarioFiltro
-
-        ) {
-
-          const uidVisita =
-
-            String(
-
-              visita.creadoPorUid || ''
-
-            ).trim();
-
-
-
-          if (
-
-            usuarioFiltro ===
-
-            FILTRO_SIN_USUARIO
-
-          ) {
-
-            return !uidVisita;
-
-          }
-
-
-
-          return (
-
-            uidVisita ===
-
-            usuarioFiltro
-
-          );
-
-        }
-
-
-
-        return true;
-
-      }
-
-    );
-
-  }, [
-
-    visitas,
-
-    fechaDesdeAplicada,
-
-    fechaHastaAplicada,
-
-    esAdminEmpresa,
-
-    usuarioFiltro
-
-  ]);
-
-
-
-
+const visitasMostradas = useMemo(() => {
+  if (esAdminEmpresa && usuarioFiltro === FILTRO_SIN_USUARIO) {
+    return visitas.filter(v => !String(v.creadoPorUid || '').trim());
+  }
+  return visitas;
+}, [visitas, esAdminEmpresa, usuarioFiltro]);
 
 const resumenEmpresas = useMemo(() => {
 
@@ -1760,7 +1407,7 @@ const limpiarFiltros = () => {
 
             className="boton-actualizar-historial"
 
-            onClick={cargarVisitas}
+            onClick={() => { setCursores([null]); cargarVisitas(1, null); }}
 
             disabled={cargando || exportando}
 
@@ -1808,7 +1455,7 @@ const limpiarFiltros = () => {
 
               ? 'Exportando...'
 
-              : 'Exportar XLSX'}
+              : exportacionCompleta ? 'Exportar período XLSX' : 'Exportar página XLSX'}
 
           </button>
 
@@ -1882,7 +1529,7 @@ const limpiarFiltros = () => {
 
 
 
-        {existeVisitaSinUsuario && (
+        {false && existeVisitaSinUsuario && (
 
           <option
 
@@ -2177,6 +1824,14 @@ const limpiarFiltros = () => {
         </div>
       )}
 
+      <nav aria-label="Paginación del historial" style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 20 }}>
+        <button type="button" onClick={anteriorPagina} disabled={cargando || pagina === 1}>Anterior</button>
+        <span>Página {pagina} · Hasta 50 visitas por página</span>
+        <button type="button" onClick={siguientePagina} disabled={cargando || !hayMas}>Siguiente</button>
+      </nav>
+      {vistaHistorial !== 'total' && (
+        <p style={{ fontSize: 13 }}>Los resúmenes de empresas y personas corresponden solo a la página actual, no al total histórico.</p>
+      )}
     </div>
 
   );
@@ -2186,3 +1841,4 @@ const limpiarFiltros = () => {
 
 
 export default HistorialVisitas;
+
