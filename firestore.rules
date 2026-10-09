@@ -7,169 +7,126 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function existePerfil() {
+      return estaAutenticado()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
     function perfilActual() {
-      return get(
-        /databases/$(database)/documents/usuarios/$(request.auth.uid)
-      ).data;
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
     }
 
     function usuarioActivo() {
-      return estaAutenticado()
-        && perfilActual().estado == 'activo';
+      return existePerfil() && perfilActual().estado == 'activo';
     }
 
-
     function empresaActiva(empresaId) {
-  return empresaId != null
-    && empresaId != ''
-    && exists(
-      /databases/$(database)/documents/empresas/$(empresaId)
-    )
-    && get(
-      /databases/$(database)/documents/empresas/$(empresaId)
-    ).data.activa == true;
-}
+      return empresaId is string
+        && empresaId != ''
+        && exists(/databases/$(database)/documents/empresas/$(empresaId))
+        && get(/databases/$(database)/documents/empresas/$(empresaId)).data.activa == true;
+    }
 
     function esSuperadmin() {
-      return usuarioActivo()
-        && perfilActual().rol == 'superadmin';
+      return usuarioActivo() && perfilActual().rol == 'superadmin';
     }
 
     function esAdminEmpresa() {
-      return usuarioActivo()
-        && perfilActual().rol == 'admin_empresa';
+      return usuarioActivo() && perfilActual().rol == 'admin_empresa';
     }
 
     function esOperador() {
-      return usuarioActivo()
-        && perfilActual().rol == 'operador';
+      return usuarioActivo() && perfilActual().rol == 'operador';
     }
 
-   function perteneceAEmpresa(empresaId) {
-  return usuarioActivo()
-    && perfilActual().empresaId == empresaId
-    && empresaActiva(empresaId);
-}
+    function perteneceAEmpresa(empresaId) {
+      return usuarioActivo()
+        && perfilActual().empresaId == empresaId
+        && empresaActiva(empresaId);
+    }
+
+    function esPersonalDeEmpresa(empresaId) {
+      return (esAdminEmpresa() || esOperador())
+        && perteneceAEmpresa(empresaId);
+    }
 
     match /usuarios/{usuarioId} {
+      // Necesario para comprobar el estado al iniciar sesión,
+      // incluso cuando el usuario está desactivado.
       allow get: if estaAutenticado()
-        && (
-          request.auth.uid == usuarioId
-          || esSuperadmin()
-        );
-
+        && (request.auth.uid == usuarioId || esSuperadmin());
       allow list: if esSuperadmin();
-
+      // La administración de usuarios se realiza desde Cloud Functions.
       allow create, update, delete: if false;
     }
 
-  match /empresas/{empresaId} {
-  allow read: if esSuperadmin()
-    || perteneceAEmpresa(empresaId);
+    match /empresas/{empresaId} {
+      allow get, list: if esSuperadmin() || perteneceAEmpresa(empresaId);
+      allow create, update: if esSuperadmin();
+      allow delete: if false;
 
-  allow create, update: if esSuperadmin();
-  allow delete: if false;
+      match /configuracion/{documentoId} {
+        allow read: if esSuperadmin() || perteneceAEmpresa(empresaId);
+        allow write: if esSuperadmin();
+      }
+    }
 
-  match /configuracion/{documentoId} {
-    allow read: if esSuperadmin()
-      || perteneceAEmpresa(empresaId);
-
-    allow write: if esSuperadmin();
-  }
-}
-
-    /*
-     * Se conserva temporalmente para compatibilidad
-     * con la aplicación Android actual.
-     */
     match /personasVisitable/{docId} {
-      allow read, write: if estaAutenticado();
+      allow get, list: if esSuperadmin()
+        || esPersonalDeEmpresa(resource.data.empresaId);
+
+      allow create: if esAdminEmpresa()
+        && perteneceAEmpresa(request.resource.data.empresaId)
+        && request.resource.data.creadoPorUid == request.auth.uid
+        && request.resource.data.estado == 'activo'
+        && request.resource.data.nombre is string
+        && request.resource.data.apellido is string;
+
+      allow update: if esAdminEmpresa()
+        && perteneceAEmpresa(resource.data.empresaId)
+        && request.resource.data.empresaId == resource.data.empresaId
+        && request.resource.data.creadoPorUid == resource.data.creadoPorUid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'nombre', 'apellido', 'estado',
+          'fechaActualizacion', 'actualizadoPorUid'
+        ])
+        && request.resource.data.actualizadoPorUid == request.auth.uid
+        && request.resource.data.estado in ['activo', 'inactivo']
+        && request.resource.data.nombre is string
+        && request.resource.data.apellido is string;
+
+      // La web utiliza desactivación lógica, no eliminación física.
+      allow delete: if false;
     }
 
-    /*
-     * VISITAS
-     *
-     * superadmin:
-     * - acceso global.
-     *
-     * admin_empresa:
-     * - puede leer todas las visitas de su empresa.
-     *
-     * operador:
-     * - solamente puede leer visitas de su empresa
-     *   creadas por su propio UID.
-     *
-     * En las escrituras, empresaId y creadoPorUid
-     * quedan protegidos para impedir suplantación.
-     */
     match /visitas/{docId} {
-      allow read: if esSuperadmin()
-        || (
-          esAdminEmpresa()
-          && perteneceAEmpresa(
-            resource.data.empresaId
-          )
-        )
-        || (
-          esOperador()
-          && perteneceAEmpresa(
-            resource.data.empresaId
-          )
-          && resource.data.creadoPorUid
-            == request.auth.uid
-        );
+      allow get, list: if esSuperadmin()
+        || (esAdminEmpresa() && perteneceAEmpresa(resource.data.empresaId))
+        || (esOperador()
+          && perteneceAEmpresa(resource.data.empresaId)
+          && resource.data.creadoPorUid == request.auth.uid);
 
-      allow create: if usuarioActivo()
-        && !esSuperadmin()
-        && perteneceAEmpresa(
-          request.resource.data.empresaId
-        )
-        && request.resource.data.creadoPorUid
-          == request.auth.uid;
+      // Compatible con MainActivity.java: empresaId y creadoPorUid.
+      allow create: if (esAdminEmpresa() || esOperador())
+        && perteneceAEmpresa(request.resource.data.empresaId)
+        && request.resource.data.creadoPorUid == request.auth.uid;
 
-      allow update: if usuarioActivo()
-        && !esSuperadmin()
-        && perteneceAEmpresa(
-          resource.data.empresaId
-        )
-        && request.resource.data.empresaId
-          == resource.data.empresaId
-        && request.resource.data.creadoPorUid
-          == resource.data.creadoPorUid
-        && (
-          esAdminEmpresa()
-          || (
-            esOperador()
-            && resource.data.creadoPorUid
-              == request.auth.uid
-          )
-        );
+      allow update: if (esAdminEmpresa() || esOperador())
+        && perteneceAEmpresa(resource.data.empresaId)
+        && request.resource.data.empresaId == resource.data.empresaId
+        && request.resource.data.creadoPorUid == resource.data.creadoPorUid
+        && (esAdminEmpresa() || resource.data.creadoPorUid == request.auth.uid);
 
-      allow delete: if usuarioActivo()
-        && (
-          (
-            esAdminEmpresa()
-            && perteneceAEmpresa(
-              resource.data.empresaId
-            )
-          )
-          || (
-            esOperador()
-            && perteneceAEmpresa(
-              resource.data.empresaId
-            )
-            && resource.data.creadoPorUid
-              == request.auth.uid
-          )
-        );
+      allow delete: if (esAdminEmpresa() && perteneceAEmpresa(resource.data.empresaId))
+        || (esOperador()
+          && perteneceAEmpresa(resource.data.empresaId)
+          && resource.data.creadoPorUid == request.auth.uid);
     }
 
-    /*
-     * Se conserva temporalmente sin cambios
-     * mientras terminamos la integración OCR.
-     */
+    // Sin referencias en las fuentes web y Android examinadas.
+    // No exponer datos OCR entre empresas mediante permisos genéricos.
     match /lecturasOCR/{docId} {
-      allow read, write: if estaAutenticado();
+      allow read, write: if false;
     }
   }
 }
