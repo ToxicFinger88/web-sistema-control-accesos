@@ -9,7 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 
 import { useNavigate } from 'react-router-dom';
 
-import { obtenerVisitas } from '../services/visitas';
+import { obtenerVisitasPaginadas, contarVisitas } from '../services/visitas';
 
 function Dashboard() {
 
@@ -21,6 +21,7 @@ const navigate = useNavigate();
   } = useAuth();
 
   const [visitas, setVisitas] = useState([]);
+  const [totalVisitas, setTotalVisitas] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
@@ -78,16 +79,12 @@ const navigate = useNavigate();
       setCargando(true);
       setError('');
 
-      const datosVisitas =
-        await obtenerVisitas({
-          empresaId,
-          creadoPorUid:
-            esOperador
-              ? uidActual
-              : ''
-        });
-
-      setVisitas(datosVisitas);
+      const filtros = { empresaId, creadoPorUid: esOperador ? uidActual : '' };
+       const [pagina, total] = await Promise.all([
+         obtenerVisitasPaginadas(filtros), contarVisitas(filtros)
+       ]);
+       setVisitas(pagina.visitas);
+       setTotalVisitas(total);
     } catch (err) {
       console.error(
         'Error cargando dashboard:',
@@ -256,7 +253,7 @@ const navigate = useNavigate();
     </span>
 
     <strong>
-      {visitas.length}
+      {totalVisitas}
     </strong>
   </article>
 
@@ -286,7 +283,7 @@ const navigate = useNavigate();
     }}
   >
     <span>
-      Empresas representadas
+      Empresas representadas (últimas 50)
     </span>
 
     <strong>
@@ -320,7 +317,7 @@ const navigate = useNavigate();
     }}
   >
     <span>
-      Personas visitadas
+      Personas visitadas (últimas 50)
     </span>
 
     <strong>

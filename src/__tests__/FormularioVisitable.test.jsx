@@ -15,7 +15,7 @@ describe('FormularioVisitable', () => {
     
     expect(screen.getByLabelText(/nombre/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/apellido/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /guardar/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /crear persona/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /cancelar/i })).toBeInTheDocument();
   });
 
@@ -24,7 +24,7 @@ describe('FormularioVisitable', () => {
     
     fireEvent.change(screen.getByLabelText(/nombre/i), { target: { value: 'Juan' } });
     fireEvent.change(screen.getByLabelText(/apellido/i), { target: { value: 'Pérez' } });
-    fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /crear persona/i }));
     
     expect(mockOnGuardar).toHaveBeenCalledWith({ nombre: 'Juan', apellido: 'Pérez' });
   });

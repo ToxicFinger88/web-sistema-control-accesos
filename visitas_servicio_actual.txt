@@ -247,65 +247,20 @@ export const contarVisitas = async (filtros) => {
   return resultado.data().count;
 };
 
-
-/**
- * Obtiene todas las visitas que coinciden con los filtros.
- *
- * - Mantiene el aislamiento por empresaId.
- * - Respeta el filtro creadoPorUid.
- * - Respeta las fechas aplicadas.
- * - Consulta por lotes de hasta 50 registros.
- * - No permite superar el máximo configurado.
- * - No se ejecuta automáticamente al abrir el historial.
- */
-export const obtenerVisitasParaExportar = async (
-  filtros,
-  maximo = 10000
-) => {
-  const limiteMaximo = Number(maximo);
-
-  if (
-    !Number.isSafeInteger(limiteMaximo) ||
-    limiteMaximo < 1
-  ) {
-    throw new Error(
-      'El máximo de registros para exportar no es válido.'
-    );
-  }
-
+// Exportación explícita por lotes: no se ejecuta al abrir el historial.
+export const obtenerVisitasParaExportar = async (filtros, maximo = 10000) => {
   const todas = [];
   let cursor = null;
   let hayMas = true;
-
-  while (hayMas && todas.length < limiteMaximo) {
-    const restantes = limiteMaximo - todas.length;
-
-    const pagina = await obtenerVisitasPaginadas({
-      ...filtros,
-      cursor,
-      tamanoPagina: Math.min(50, restantes)
-    });
-
+  while (hayMas && todas.length < maximo) {
+    const pagina = await obtenerVisitasPaginadas({ ...filtros, cursor });
     todas.push(...pagina.visitas);
     cursor = pagina.cursorSiguiente;
     hayMas = pagina.hayMas;
-
-    if (hayMas && !cursor) {
-      throw new Error(
-        'No fue posible continuar la exportación.'
-      );
-    }
   }
-
-  if (hayMas) {
-    throw new Error(
-      `La exportación supera el máximo de ${limiteMaximo.toLocaleString('es-UY')} registros. Acote el rango de fechas.`
-    );
-  }
-
+  if (hayMas) throw new Error(`La exportación supera el máximo de ${maximo} registros. Acote el rango de fechas.`);
   return todas;
 };
-
 
 // Compatibilidad: las llamadas existentes quedan acotadas a una página.
 export const obtenerVisitas = async (filtros) =>

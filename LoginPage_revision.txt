@@ -1,0 +1,165 @@
+
+import {
+  useEffect,
+  useState
+} from 'react';
+
+import {
+  useNavigate
+} from 'react-router-dom';
+
+import {
+  loginWithEmailAndPassword
+} from '../services/auth';
+
+import {
+  useAuth
+} from '../hooks/useAuth';
+
+function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [esperandoAcceso, setEsperandoAcceso] =
+    useState(false);
+
+  const {
+    user,
+    perfil,
+    loading,
+    errorPerfil
+  } = useAuth();
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!esperandoAcceso || loading) return;
+
+    if (errorPerfil) {
+      setEsperandoAcceso(false);
+      setCargando(false);
+      setError(errorPerfil);
+      return;
+    }
+
+    if (!user || !perfil) return;
+
+    setEsperandoAcceso(false);
+    setCargando(false);
+
+    if (perfil.estado === 'pendiente') {
+      navigate('/pendiente', {
+        replace: true
+      });
+      return;
+    }
+
+    if (perfil.rol === 'superadmin') {
+      navigate('/admin', {
+        replace: true
+      });
+      return;
+    }
+
+    navigate('/dashboard', {
+      replace: true
+    });
+  }, [
+    esperandoAcceso,
+    loading,
+    errorPerfil,
+    user,
+    perfil,
+    navigate
+  ]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    setError('');
+    setCargando(true);
+
+    try {
+      await loginWithEmailAndPassword(
+        email,
+        password
+      );
+
+      setEsperandoAcceso(true);
+    } catch (err) {
+      console.error(
+        'Error de acceso:',
+        err
+      );
+
+      setError(
+        'No fue posible iniciar sesión. Verifique sus credenciales.'
+      );
+
+      setCargando(false);
+      setEsperandoAcceso(false);
+    }
+  };
+
+  return (
+    <div className="login-container">
+      <h1>Control de Visitas</h1>
+
+      <h2>Iniciar sesión</h2>
+
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="email">
+            Correo electrónico
+          </label>
+
+          <input
+            type="email"
+            id="email"
+            value={email}
+            onChange={(event) =>
+              setEmail(event.target.value)
+            }
+            autoComplete="email"
+            required
+          />
+        </div>
+
+        <div>
+          <label htmlFor="password">
+            Contraseña
+          </label>
+
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(event) =>
+              setPassword(event.target.value)
+            }
+            autoComplete="current-password"
+            required
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={cargando}
+        >
+          {cargando
+            ? 'Verificando acceso...'
+            : 'Acceder'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export default LoginPage;
