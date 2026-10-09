@@ -166,7 +166,7 @@ export const obtenerEmpresaActivaPorId =
     const datos =
       resultado.data();
 
-    if (datos.activa === false) {
+        if (datos.activa !== true) {
       throw new Error(
         'La empresa asignada está inactiva.'
       );

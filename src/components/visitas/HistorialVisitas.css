@@ -1,0 +1,400 @@
+
+/* =====================================================
+   CONTROL DE VISITAS
+   HistorialVisitas.css
+   Panel de filtros, tablas, botones y paginación
+   ===================================================== */
+
+.historial-visitas {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  color: #172b4d;
+}
+
+/* CABECERA */
+
+.historial-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.historial-cabecera h1 {
+  margin: 0 0 6px;
+  color: #172b4d;
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 700;
+}
+
+.historial-cabecera p {
+  margin: 4px 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.historial-botones {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* BOTONES */
+
+.historial-visitas .hv-boton {
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease,
+              border-color 0.15s ease,
+              box-shadow 0.15s ease;
+}
+
+.historial-visitas .hv-boton:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.historial-visitas .hv-boton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.historial-visitas .hv-boton-primario {
+  color: #ffffff;
+  background: #2563eb;
+  border: 1px solid #2563eb;
+}
+
+.historial-visitas .hv-boton-primario:not(:disabled):hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.historial-visitas .hv-boton-secundario {
+  color: #2563eb;
+  background: #ffffff;
+  border: 1px solid #93b4fa;
+}
+
+.historial-visitas .hv-boton-secundario:not(:disabled):hover {
+  background: #eff6ff;
+}
+
+.historial-visitas .hv-boton-exportar {
+  color: #ffffff;
+  background: #15803d;
+  border: 1px solid #15803d;
+}
+
+.historial-visitas .hv-boton-exportar:not(:disabled):hover {
+  background: #166534;
+}
+
+/* PANEL PRINCIPAL */
+
+.historial-visitas .hv-filtros {
+  background: #ffffff;
+  border: 1px solid #dce3ed;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 22px;
+}
+
+.historial-visitas .hv-titulo-filtros {
+  margin: 0 0 16px;
+  color: #172b4d;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+/* SELECTOR DE USUARIO */
+
+.historial-visitas .hv-filtro-usuario {
+  width: 100%;
+  max-width: 370px;
+  margin-bottom: 18px;
+}
+
+.historial-visitas .hv-etiqueta {
+  display: block;
+  margin-bottom: 7px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.historial-visitas .hv-campo {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.historial-visitas .hv-campo:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.13);
+}
+
+/* PANEL DE FECHAS */
+
+.historial-visitas .hv-panel-fechas {
+  padding: 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.historial-visitas .hv-titulo-fechas {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 16px;
+  color: #1e293b;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.historial-visitas .hv-grid-fechas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.historial-visitas .hv-buscar-fechas {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.historial-visitas .hv-error-filtro {
+  margin: 12px 0 0;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+/* PERÍODOS RÁPIDOS */
+
+.historial-visitas .hv-periodos {
+  margin-top: 20px;
+}
+
+.historial-visitas .hv-titulo-periodos {
+  margin: 0 0 12px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.historial-visitas .hv-grupo-periodos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.historial-visitas .hv-boton-periodo {
+  min-height: 39px;
+  padding: 9px 16px;
+  color: #2563eb;
+  background: #ffffff;
+  border: 1px solid #93b4fa;
+  border-radius: 22px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.historial-visitas .hv-boton-periodo:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.historial-visitas .hv-boton-periodo.activo {
+  color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.historial-visitas .hv-boton-periodo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.historial-visitas .hv-boton-periodo:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+/* RESULTADOS */
+
+.historial-visitas .hv-resultados {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.historial-visitas .hv-resultados-titulo {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.historial-visitas .hv-resultados-periodo {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.historial-visitas .hv-resultados-acciones {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.historial-visitas .hv-contador {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 9px 14px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* TABLAS */
+
+.historial-visitas .tabla-responsive {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 9px;
+}
+
+.historial-visitas .tabla-responsive table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.historial-visitas .tabla-responsive th {
+  background: #f1f5f9;
+  color: #334155;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 12px 14px;
+  border-bottom: 1px solid #dbe3ee;
+}
+
+.historial-visitas .tabla-responsive td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+}
+
+.historial-visitas .tabla-responsive tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* PAGINACIÓN */
+
+.historial-visitas .hv-paginacion {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.historial-visitas .hv-paginacion-texto {
+  color: #334155;
+  font-size: 13px;
+}
+
+.historial-visitas .hv-nota-paginacion {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+/* PANTALLAS PEQUEÑAS */
+
+@media (max-width: 768px) {
+  .historial-visitas .hv-filtros {
+    padding: 14px;
+  }
+
+  .historial-visitas .hv-panel-fechas {
+    padding: 14px;
+  }
+
+  .historial-visitas .hv-grid-fechas {
+    grid-template-columns: 1fr;
+  }
+
+  .historial-visitas .hv-filtro-usuario {
+    max-width: none;
+  }
+
+  .historial-visitas .hv-resultados {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .historial-visitas .hv-resultados-acciones {
+    justify-content: space-between;
+  }
+
+  .historial-visitas .hv-paginacion {
+    justify-content: center;
+  }
+
+  .historial-visitas .tabla-responsive table {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 480px) {
+  .historial-cabecera {
+    flex-direction: column;
+  }
+
+  .historial-botones {
+    width: 100%;
+  }
+
+  .historial-botones .hv-boton {
+    flex: 1;
+  }
+
+  .historial-visitas .hv-grupo-periodos {
+    gap: 8px;
+  }
+
+  .historial-visitas .hv-boton-periodo {
+    flex: 1 1 auto;
+  }
+}

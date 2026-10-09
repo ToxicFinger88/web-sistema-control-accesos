@@ -1,0 +1,88 @@
+
+.acceso-bloqueado-pagina {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f5f7fb;
+}
+
+.acceso-bloqueado-tarjeta {
+  width: 100%;
+  max-width: 480px;
+  padding: 42px 34px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+  text-align: center;
+}
+
+.acceso-bloqueado-icono {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fee2e2;
+  border-radius: 50%;
+  font-size: 34px;
+}
+
+.acceso-bloqueado-tarjeta h1 {
+  margin: 0 0 20px;
+  color: #111827;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.acceso-bloqueado-descripcion {
+  margin: 0 0 16px;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.65;
+}
+
+.acceso-bloqueado-ayuda {
+  margin: 0 0 30px;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.acceso-bloqueado-boton {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.acceso-bloqueado-boton:hover {
+  background: #1d4ed8;
+}
+
+.acceso-bloqueado-boton:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .acceso-bloqueado-tarjeta {
+    padding: 32px 22px;
+  }
+
+  .acceso-bloqueado-tarjeta h1 {
+    font-size: 23px;
+  }
+}
