@@ -101,10 +101,7 @@ service cloud.firestore {
 
     match /visitas/{docId} {
       allow get, list: if esSuperadmin()
-        || (esAdminEmpresa() && perteneceAEmpresa(resource.data.empresaId))
-        || (esOperador()
-          && perteneceAEmpresa(resource.data.empresaId)
-          && resource.data.creadoPorUid == request.auth.uid);
+        || esPersonalDeEmpresa(resource.data.empresaId);
 
       // Compatible con MainActivity.java: empresaId y creadoPorUid.
       allow create: if (esAdminEmpresa() || esOperador())
